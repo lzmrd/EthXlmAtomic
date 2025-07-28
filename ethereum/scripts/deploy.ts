@@ -1,0 +1,141 @@
+import { 
+  createPublicClient, 
+  createWalletClient, 
+  http, 
+  parseEther,
+  formatEther,
+  getContract,
+  type Address,
+  type Hash
+} from 'viem';
+import { sepolia } from 'viem/chains';
+import { privateKeyToAccount } from 'viem/accounts';
+import { CONTRACT_ADDRESSES } from "../../shared/constants";
+import fs from 'fs';
+
+// SimpleEscrow bytecode and ABI - compiled 28/07/2025, 14:48:14
+// For now, we'll use a placeholder that needs to be replaced with actual compiled bytecode
+const SIMPLE_ESCROW_BYTECODE = '0x608060405234801561000f575f80fd5b506109348061001d5f395ff3fe608060405260043610610049575f3560e01c80632d83549c1461004d57806384cc9dfb146100fd578063c4d252f51461011e578063f023b8111461013d578063f627662514610269575b5f80fd5b348015610058575f80fd5b506100b461006736600461083f565b5f602081905290815260409020805460018201546002830154600384015460048501546005909501546001600160a01b039485169593909416939192909160ff8082169161010090041687565b604080516001600160a01b0398891681529790961660208801529486019390935260608501919091526080840152151560a0830152151560c082015260e0015b60405180910390f35b348015610108575f80fd5b5061011c610117366004610856565b61027c565b005b348015610129575f80fd5b5061011c61013836600461083f565b61048f565b348015610148575f80fd5b5061020661015736600461083f565b6040805160e0810182525f80825260208201819052918101829052606081018290526080810182905260a0810182905260c0810191909152505f9081526020818152604091829020825160e08101845281546001600160a01b03908116825260018301541692810192909252600281015492820192909252600382015460608201526004820154608082015260059091015460ff808216151560a084015261010090910416151560c082015290565b6040516100f4919081516001600160a01b0390811682526020808401519091169082015260408083015190820152606080830151908201526080808301519082015260a08281015115159082015260c09182015115159181019190915260e00190565b61011c610277366004610876565b6105f8565b5f82815260208190526040902080546001600160a01b03166102b15760405163f1d80ab160e01b815260040160405180910390fd5b600581015460ff166102d657604051630ad8041560e11b815260040160405180910390fd5b6005810154610100900460ff16156102ec575f80fd5b806004015442111561031157604051633d37e55360e11b815260040160405180910390fd5b806003015460028360405160200161032b91815260200190565b60408051601f1981840301815290829052610345916108bb565b602060405180830381855afa158015610360573d5f803e3d5ffd5b5050506040513d601f19601f8201168201806040525081019061038391906108e7565b146103a15760405163abab6bd760e01b815260040160405180910390fd5b60058101805461ff001916610100179055600181015460028201546040515f926001600160a01b031691908381818185875af1925050503d805f8114610402576040519150601f19603f3d011682016040523d82523d5f602084013e610407565b606091505b505090508061044f5760405162461bcd60e51b815260206004820152600f60248201526e151c985b9cd9995c8819985a5b1959608a1b60448201526064015b60405180910390fd5b837fff86ebcfa717c0f26b451e7de3eb5d790bc2c07230f57c98ad9951fae73e47228460405161048191815260200190565b60405180910390a250505050565b5f81815260208190526040902080546001600160a01b03166104c45760405163f1d80ab160e01b815260040160405180910390fd5b600581015460ff166104e957604051630ad8041560e11b815260040160405180910390fd5b6005810154610100900460ff16156104ff575f80fd5b806004015442116105235760405163621e25c360e01b815260040160405180910390fd5b60058101805461ff001916610100179055805460028201546040515f926001600160a01b031691908381818185875af1925050503d805f8114610581576040519150601f19603f3d011682016040523d82523d5f602084013e610586565b606091505b50509050806105c95760405162461bcd60e51b815260206004820152600f60248201526e151c985b9cd9995c8819985a5b1959608a1b6044820152606401610446565b60405183907f642e58efcd0db9e3e5171b8f71a4655b98647c098a6aa596308df9e8037ecc09905f90a2505050565b5f848152602081905260409020546001600160a01b0316156106545760405162461bcd60e51b8152602060048201526015602482015274457363726f7720616c72656164792065786973747360581b6044820152606401610446565b5f34116106935760405162461bcd60e51b815260206004820152600d60248201526c09aeae6e840e6cadcc8408aa89609b1b6044820152606401610446565b6040518060e00160405280336001600160a01b03168152602001846001600160a01b031681526020013481526020018381526020018281526020016001151581526020015f15158152505f808681526020019081526020015f205f820151815f015f6101000a8154816001600160a01b0302191690836001600160a01b031602179055506020820151816001015f6101000a8154816001600160a01b0302191690836001600160a01b0316021790555060408201518160020155606082015181600301556080820151816004015560a0820151816005015f6101000a81548160ff02191690831515021790555060c08201518160050160016101000a81548160ff021916908315150217905550905050837f988f74a523f4297737548e1bc71ca431bee5f22fc29c4056ef51c11bfa0ba32633853486866040516108079594939291906001600160a01b03958616815293909416602084015260408301919091526060820152608081019190915260a00190565b60405180910390a260405184907f8242c248345d7ad98cb4bb5e5f7b64ef736e2f601c08287714f49b154a2b08bd905f90a250505050565b5f6020828403121561084f575f80fd5b5035919050565b5f8060408385031215610867575f80fd5b50508035926020909101359150565b5f805f8060808587031215610889575f80fd5b8435935060208501356001600160a01b03811681146108a6575f80fd5b93969395505050506040820135916060013590565b5f82515f5b818110156108da57602081860181015185830152016108c0565b505f920191825250919050565b5f602082840312156108f7575f80fd5b505191905056fea26469706673582212201d1b138d6179ae7601430c5a7308eb1c7f2d4f8fd4f7417d5c8794a78c22bbe564736f6c63430008170033'; // Placeholder
+
+async function main() {
+  console.log("🚀 Starting Ethereum contract deployment with Viem...\n");
+
+  // Check for private key
+  const privateKey = process.env.PRIVATE_KEY as `0x${string}`;
+  if (!privateKey) {
+    console.error("❌ Please set PRIVATE_KEY environment variable");
+    process.exit(1);
+  }
+
+  // Create clients
+  const account = privateKeyToAccount(privateKey);
+  const publicClient = createPublicClient({
+    chain: sepolia,
+    transport: http(process.env.SEPOLIA_RPC_URL || "https://sepolia.drpc.org")
+  });
+
+  const walletClient = createWalletClient({
+    account,
+    chain: sepolia,
+    transport: http(process.env.SEPOLIA_RPC_URL || "https://sepolia.drpc.org")
+  });
+
+  console.log("Deploying contracts with account:", account.address);
+  
+  const balance = await publicClient.getBalance({ address: account.address });
+  console.log("Account balance:", formatEther(balance), "ETH\n");
+
+  if (balance === 0n) {
+    console.error("❌ Account has no ETH balance. Please fund the account with Sepolia ETH.");
+    console.log("💡 Get Sepolia ETH from: https://faucet.sepolia.org/");
+    process.exit(1);
+  }
+
+  try {
+    console.log("📝 Deploying SimpleEscrow...");
+    
+    // NOTE: This is a simplified example. In a real deployment, you would:
+    // 1. Compile the Solidity contract using solc or forge
+    // 2. Get the actual bytecode and ABI
+    // 3. Deploy using the bytecode
+    
+    // For demonstration, we'll show how it would work:
+    console.log("⚠️  This is a demonstration script.");
+    console.log("📋 To actually deploy, you need to:");
+    console.log("   1. Compile SimpleEscrow.sol to get bytecode");
+    console.log("   2. Replace SIMPLE_ESCROW_BYTECODE with actual bytecode");
+    console.log("   3. Use deployContract with the bytecode");
+    
+    // Example of how deployment would work (commented out since we don't have real bytecode):
+    /*
+    const hash = await walletClient.deployContract({
+      abi: SIMPLE_ESCROW_ABI,
+      bytecode: SIMPLE_ESCROW_BYTECODE,
+      gas: 2000000n
+    });
+
+    console.log(`⏳ Contract deployment transaction sent: ${hash}`);
+    const receipt = await publicClient.waitForTransactionReceipt({ hash });
+    const contractAddress = receipt.contractAddress;
+    console.log(`✅ SimpleEscrow deployed to: ${contractAddress}`);
+    */
+
+    // For now, create a mock deployment for testing
+    const mockContractAddress = "0x" + "1234567890123456789012345678901234567890";
+    console.log(`✅ Mock SimpleEscrow address: ${mockContractAddress}`);
+
+    // Save deployed addresses to a file
+    const deployedAddresses = {
+      network: {
+        name: sepolia.name,
+        chainId: sepolia.id,
+        rpcUrl: process.env.SEPOLIA_RPC_URL || "https://sepolia.drpc.org"
+      },
+      timestamp: new Date().toISOString(),
+      contracts: {
+        SimpleEscrow: mockContractAddress
+      },
+      deployer: account.address,
+      deploymentMethod: "viem"
+    };
+
+    // Create ethereum directory if it doesn't exist
+    if (!fs.existsSync('ethereum')) {
+      fs.mkdirSync('ethereum');
+    }
+
+    fs.writeFileSync(
+      'ethereum/deployed-addresses.json',
+      JSON.stringify(deployedAddresses, null, 2)
+    );
+
+    console.log("\n🎉 Deployment preparation completed!");
+    console.log("📄 Contract addresses saved to ethereum/deployed-addresses.json");
+    console.log("\n📋 Next steps:");
+    console.log("   1. Compile SimpleEscrow.sol to get bytecode");
+    console.log("   2. Replace mock address with real deployed contract");
+    console.log("   3. Test deployment with EthereumResolver");
+    
+  } catch (error) {
+    console.error("💥 Deployment failed:", error);
+    process.exit(1);
+  }
+}
+
+// Helper function to compile contract (would use solc in real scenario)
+function compileContract() {
+  console.log("🔧 Contract compilation would happen here");
+  console.log("   - Use solc or forge to compile SimpleEscrow.sol");
+  console.log("   - Extract bytecode and ABI");
+  console.log("   - Return compiled artifacts");
+}
+
+main()
+  .then(() => {
+    console.log("\n✅ Deploy script completed successfully!");
+    process.exit(0);
+  })
+  .catch((error) => {
+    console.error("💥 Deploy script failed:", error);
+    process.exit(1);
+  }); 
