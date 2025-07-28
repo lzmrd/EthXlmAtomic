@@ -7,8 +7,11 @@
     "build": "tsc",
     "dev": "ts-node test/integration-test.ts",
     "test": "ts-node test/unit-test.ts",
+    "test:ethereum": "ts-node test/ethereum-test.ts",
+    "test:ethereum:real": "ts-node test/ethereum-real-test.ts",
     "lint": "tslint --project .",
     "clean": "rm -rf dist/",
+    "setup": "cp env.example .env && echo '✅ .env file created! Please edit it with your values'",
     "compile:ethereum": "ts-node ethereum/scripts/compile.ts",
     "deploy:ethereum": "ts-node ethereum/scripts/deploy.ts"
   },
@@ -30,6 +33,7 @@
     "typescript": "^5.0.0"
   },
   "dependencies": {
+    "dotenv": "^17.2.1",
     "node-fetch": "^3.3.0",
     "solc": "^0.8.23",
     "viem": "^2.21.0"
