@@ -1,0 +1,25 @@
+{
+  "name": "unite-defi-fusion-plus",
+  "version": "1.0.0",
+  "description": "1inch Fusion+ extension for Stellar blockchain",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "ts-node test/integration-test.ts",
+    "test": "ts-node test/unit-test.ts",
+    "lint": "tslint --project .",
+    "clean": "rm -rf dist/"
+  },
+  "keywords": ["fusion-plus", "stellar", "atomic-swap", "1inch", "defi"],
+  "author": "Unite DeFi Team",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "ts-node": "^10.9.0",
+    "tslint": "^6.1.3"
+  },
+  "dependencies": {
+    "node-fetch": "^3.3.0"
+  }
+} 
