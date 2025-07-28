@@ -42,15 +42,15 @@ export class StellarResolver {
     return Promise.resolve();
   }
 
-  async monitorAuctions() {
+    async monitorAuctions() {
     if (!this.isMonitoring) return;
     const monitoringLoop = async () => {
       try {
         const auctions = await this.oneinchAPI.getActiveAuctions();
         for (const auction of auctions) {
           if (this.shouldProcessAuction(auction)) {
-            await this.executeOrder(auction);
-          }
+                await this.executeOrder(auction);
+            }
         }
       } catch (error) {
         console.error('Error monitoring auctions:', error);
@@ -72,9 +72,9 @@ export class StellarResolver {
     // TODO: Implement real profitability calculation
     // For now, assume all auctions are profitable for demo
     return true;
-  }
-
-  private async executeOrder(auction: FusionAuction) {
+    }
+    
+    private async executeOrder(auction: FusionAuction) {
     console.log(`🚀 Executing cross-chain order for auction: ${auction.id}`);
     
     if (!this.isInitialized) {
@@ -90,7 +90,7 @@ export class StellarResolver {
       // Step 2: Create Stellar escrow (resolver deposits their tokens)
       console.log('📝 Step 2: Creating Stellar escrow...');
       const stellarTx = await this.createStellarEscrow(auction);
-      
+        
       // Step 3: Report execution to 1inch
       console.log('📝 Step 3: Reporting execution to 1inch...');
       await this.reportExecution(auction.id, ethTx, stellarTx);
@@ -157,7 +157,7 @@ export class StellarResolver {
       // Claim from Ethereum escrow
       const ethClaimTx = await this.ethereumResolver.claimEscrow(orderHash, secret);
       console.log(`✅ Ethereum claim successful: ${ethClaimTx}`);
-      
+        
       // TODO: Claim from Stellar escrow
       console.log(`⭐ Stellar claim (TODO): ${orderHash}`);
       
@@ -218,5 +218,5 @@ export class StellarResolver {
       ethereumContract: this.ethereumResolver.getContractAddress(),
       timestamp: Date.now()
     };
-  }
+    }
 }

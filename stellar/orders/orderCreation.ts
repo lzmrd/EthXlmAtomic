@@ -11,15 +11,15 @@ export class OrderCreation {
     this.secretManager = new SecretManager();
   }
 
-  async createCrossChainOrder(userParams: {
+    async createCrossChainOrder(userParams: {
     fromToken: string;
     toToken: string;
     amount: string;
     fromAddress: string;  // Ethereum
     toAddress: string;    // Stellar
     timelock?: number;
-  }) {
-    // 1. Generate secret and hashlock
+    }) {
+        // 1. Generate secret and hashlock
     const { secret, hashlock } = this.secretManager.generateSecretAndHashlock();
     
     // 2. Prepare order parameters
@@ -32,7 +32,7 @@ export class OrderCreation {
       timelock: userParams.timelock || 3600, // Default 1 hour
       hashlock: hashlock
     };
-    
+        
     // 3. Call 1inch API to create order
     try {
       const quote = await this.oneinchAPI.getQuote(orderParams);
@@ -46,7 +46,7 @@ export class OrderCreation {
         orderHash,
         quote,
         secret, // Only for development - remove in production
-        hashlock,
+            hashlock,
         orderParams
       };
     } catch (error) {
@@ -93,5 +93,5 @@ export class OrderCreation {
       status: 'active',
       timestamp: Date.now()
     };
-  }
+    }
 }

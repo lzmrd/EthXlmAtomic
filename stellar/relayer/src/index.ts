@@ -51,12 +51,12 @@ export class FusionPlusRelayer {
     this.secretManager = new SecretManager();
   }
 
-  async start() {
+    async start() {
     console.log('🚀 Starting FusionPlus Relayer...');
     
-    await this.crossChainMonitor.startMonitoring();
-    await this.stellarResolver.startMonitoring();
-    
+        await this.crossChainMonitor.startMonitoring();
+        await this.stellarResolver.startMonitoring();
+        
     this.isRunning = true;
     this.startAuctionUpdates();
     this.setupEventHandlers();
@@ -415,5 +415,5 @@ export class FusionPlusRelayer {
       timestamp: Date.now(),
       resolverStatus: this.stellarResolver.getStatus(),
     };
-  }
+    }
 }
