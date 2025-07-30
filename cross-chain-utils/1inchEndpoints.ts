@@ -12,23 +12,23 @@ export class OneinchEndpoints {
     this.baseUrl = ONEINCH_API.BASE_URL;
   }
 
-  // Get quote for cross-chain swap
-  async getQuote(params: SwapParams) {
+    // Get quote for cross-chain swap
+    async getQuote(params: SwapParams) {
     return await this.call('GET', ONEINCH_API.ENDPOINTS.QUOTE, params);
-  }
-  
-  // Create signed order
-  async createOrder(signedOrder: SignedOrder) {
+    }
+    
+    // Create signed order
+    async createOrder(signedOrder: SignedOrder) {
     return await this.call('POST', ONEINCH_API.ENDPOINTS.ORDER, signedOrder);
-  }
-  
-  // Get active auctions (for resolvers)
+    }
+    
+    // Get active auctions (for resolvers)
   async getActiveAuctions(): Promise<FusionAuction[]> {
     return await this.call('GET', ONEINCH_API.ENDPOINTS.AUCTIONS);
-  }
-  
-  // Report order execution
-  async reportExecution(executionData: ExecutionReport) {
+    }
+    
+    // Report order execution
+    async reportExecution(executionData: ExecutionReport) {
     return await this.call('POST', ONEINCH_API.ENDPOINTS.EXECUTION, executionData);
   }
 
@@ -70,5 +70,5 @@ export class OneinchEndpoints {
       }
       throw error;
     }
-  }
+    }
 }

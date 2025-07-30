@@ -5,30 +5,30 @@ export class SecretManager {
   private secrets: Map<string, string> = new Map();
   private revealedSecrets: Map<string, string> = new Map();
 
-  async initiateSecretReveal(orderHash: string) {
-    // 1. Verify both escrows are funded and valid
-    const bothEscrowsReady = await this.verifyEscrows(orderHash);
+    async initiateSecretReveal(orderHash: string) {
+        // 1. Verify both escrows are funded and valid
+        const bothEscrowsReady = await this.verifyEscrows(orderHash);
     if (!bothEscrowsReady) {
       console.log(`Escrows not ready for order: ${orderHash}`);
       return;
     }
-    
-    // 2. Get stored secret
-    const secret = await this.getSecret(orderHash);
+        
+        // 2. Get stored secret
+        const secret = await this.getSecret(orderHash);
     if (!secret) {
       console.error(`No secret found for order: ${orderHash}`);
       return;
     }
-    
-    // 3. Send secret to resolver for claiming on destination (Stellar)
-    await this.notifyResolverForClaim(orderHash, secret);
-    
-    // 4. Monitor for secret revelation on Stellar blockchain
-    const revealedSecret = await this.monitorSecretReveal(orderHash);
-    
-    // 5. Enable user to claim on source (Ethereum) with revealed secret
+        
+        // 3. Send secret to resolver for claiming on destination (Stellar)
+        await this.notifyResolverForClaim(orderHash, secret);
+        
+        // 4. Monitor for secret revelation on Stellar blockchain
+        const revealedSecret = await this.monitorSecretReveal(orderHash);
+        
+        // 5. Enable user to claim on source (Ethereum) with revealed secret
     if (revealedSecret) {
-      await this.enableUserClaim(orderHash, revealedSecret);
+        await this.enableUserClaim(orderHash, revealedSecret);
     }
   }
 
@@ -149,5 +149,5 @@ export class SecretManager {
   // Get revealed secret for user claim
   getRevealedSecret(orderHash: string): string | null {
     return this.revealedSecrets.get(orderHash) || null;
-  }
+    }
 }

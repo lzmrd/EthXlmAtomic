@@ -12,17 +12,17 @@ export class CrossChainMonitor {
     this.oneinchAPI = new OneinchEndpoints(apiKey);
   }
 
-  async startMonitoring() {
-    // Monitor 1inch API for new orders targeting Stellar
-    this.monitor1inchOrders();
-    
-    // Monitor Ethereum for escrow creation
-    this.monitorEthereumEscrows();
-    
-    // Monitor Stellar for escrow creation  
-    this.monitorStellarEscrows();
-    
-    // Coordinate when both escrows are ready
+    async startMonitoring() {
+        // Monitor 1inch API for new orders targeting Stellar
+        this.monitor1inchOrders();
+        
+        // Monitor Ethereum for escrow creation
+        this.monitorEthereumEscrows();
+        
+        // Monitor Stellar for escrow creation  
+        this.monitorStellarEscrows();
+        
+        // Coordinate when both escrows are ready
     setInterval(() => {
       this.checkForReadyEscrows();
     }, TIME_CONSTANTS.MONITORING_INTERVAL);
@@ -87,13 +87,13 @@ export class CrossChainMonitor {
         await this.coordinateExecution(orderHash);
       }
     }
-  }
-  
-  private async coordinateExecution(orderHash: string) {
-    // Wait for both Ethereum and Stellar escrows
-    const ethEscrow = await this.waitForEthereumEscrow(orderHash);
-    const stellarEscrow = await this.waitForStellarEscrow(orderHash);
+    }
     
+    private async coordinateExecution(orderHash: string) {
+        // Wait for both Ethereum and Stellar escrows
+        const ethEscrow = await this.waitForEthereumEscrow(orderHash);
+        const stellarEscrow = await this.waitForStellarEscrow(orderHash);
+        
     if (ethEscrow && stellarEscrow) {
       // Trigger secret revelation phase - will be implemented later
       console.log(`Coordinating execution for order: ${orderHash}`);
@@ -118,5 +118,5 @@ export class CrossChainMonitor {
   registerStellarEscrow(orderHash: string, escrowData: EscrowData) {
     this.stellarEscrows.set(orderHash, escrowData);
     console.log(`Stellar escrow registered for order: ${orderHash}`);
-  }
+    }
 }
