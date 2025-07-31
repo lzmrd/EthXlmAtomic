@@ -1,0 +1,26 @@
+{
+  "sepolia": {
+    "network": "sepolia",
+    "chainId": 11155111,
+    "deployer": "0x8b1C2B3E79Ca44C0862d7B3cfCC0F792dDB1B167",
+    "deploymentTime": "2025-07-31T11:25:26.020Z",
+    "contracts": {
+      "MockLimitOrderProtocol": {
+        "address": "0x61cfef8af3547592cd5d193955a0f6f6690784d6",
+        "txHash": "0x6409e33974751f60f9ad5c1295d54294096bb9a4ecb066eaecdf95f1f594cddf",
+        "blockNumber": "8882106",
+        "gasUsed": "409405"
+      },
+      "FusionPlusWrapper": {
+        "address": "0xf2836e4124ffd3905bff0cd18676e83be55385f1",
+        "txHash": "0x0793250baf57a69bfc68033b9939e4ed5c53bd5c44c182525b353cb1bcb19f50",
+        "blockNumber": "8882107",
+        "gasUsed": "2243279",
+        "constructorArgs": {
+          "limitOrderProtocol": "0x61cfef8af3547592cd5d193955a0f6f6690784d6",
+          "weth": "0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14"
+        }
+      }
+    }
+  }
+}

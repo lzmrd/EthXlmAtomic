@@ -57,7 +57,7 @@ try {
   }
   
   // Extract compiled contract
-  const contractName = 'SimpleEscrow';
+  const contractName = 'FusionEscrow';
   const contract = output.contracts['SimpleEscrow.sol'][contractName];
   
   if (!contract) {

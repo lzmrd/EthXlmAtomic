@@ -16,16 +16,37 @@ import { privateKeyToAccount } from 'viem/accounts';
 import { FusionAuction, EscrowData } from '../../shared/types';
 import { ETHEREUM_CONFIG } from '../../shared/constants';
 
-// Simple ABI for SimpleEscrow contract with proper typing
-const SIMPLE_ESCROW_ABI = [
+// Fusion+ compliant ABI for FusionEscrow contract
+const FUSION_ESCROW_ABI = [
   {
     inputs: [
       { name: 'escrowId', type: 'bytes32' },
-      { name: 'taker', type: 'address' },
+      { name: 'maker', type: 'address' },
+      { name: 'targetAddress', type: 'address' },
+      { name: 'amount', type: 'uint256' },
+      { name: 'token', type: 'address' },
       { name: 'hashlock', type: 'bytes32' },
-      { name: 'timelock', type: 'uint256' }
+      { name: 'finalityDuration', type: 'uint256' },
+      { name: 'exclusiveDuration', type: 'uint256' },
+      { name: 'cancellationDuration', type: 'uint256' }
     ],
-    name: 'createEscrow',
+    name: 'createSourceEscrow',
+    outputs: [],
+    stateMutability: 'payable',
+    type: 'function'
+  },
+  {
+    inputs: [
+      { name: 'escrowId', type: 'bytes32' },
+      { name: 'maker', type: 'address' },
+      { name: 'amount', type: 'uint256' },
+      { name: 'token', type: 'address' },
+      { name: 'hashlock', type: 'bytes32' },
+      { name: 'finalityDuration', type: 'uint256' },
+      { name: 'exclusiveDuration', type: 'uint256' },
+      { name: 'cancellationDuration', type: 'uint256' }
+    ],
+    name: 'createDestinationEscrow',
     outputs: [],
     stateMutability: 'payable',
     type: 'function'
@@ -35,14 +56,31 @@ const SIMPLE_ESCROW_ABI = [
       { name: 'escrowId', type: 'bytes32' },
       { name: 'secret', type: 'bytes32' }
     ],
-    name: 'claim',
+    name: 'claimExclusive',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function'
+  },
+  {
+    inputs: [
+      { name: 'escrowId', type: 'bytes32' },
+      { name: 'secret', type: 'bytes32' }
+    ],
+    name: 'claimPublic',
     outputs: [],
     stateMutability: 'nonpayable',
     type: 'function'
   },
   {
     inputs: [{ name: 'escrowId', type: 'bytes32' }],
-    name: 'cancel',
+    name: 'cancelExclusive',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function'
+  },
+  {
+    inputs: [{ name: 'escrowId', type: 'bytes32' }],
+    name: 'cancelPublic',
     outputs: [],
     stateMutability: 'nonpayable',
     type: 'function'
@@ -54,11 +92,16 @@ const SIMPLE_ESCROW_ABI = [
       {
         components: [
           { name: 'maker', type: 'address' },
-          { name: 'taker', type: 'address' },
+          { name: 'resolver', type: 'address' },
+          { name: 'targetAddress', type: 'address' },
           { name: 'amount', type: 'uint256' },
+          { name: 'safetyDeposit', type: 'uint256' },
+          { name: 'token', type: 'address' },
           { name: 'hashlock', type: 'bytes32' },
-          { name: 'timelock', type: 'uint256' },
-          { name: 'funded', type: 'bool' },
+          { name: 'finalityLock', type: 'uint256' },
+          { name: 'exclusiveLock', type: 'uint256' },
+          { name: 'cancellationLock', type: 'uint256' },
+          { name: 'depositPhase', type: 'bool' },
           { name: 'completed', type: 'bool' }
         ],
         name: '',
@@ -69,28 +112,67 @@ const SIMPLE_ESCROW_ABI = [
     type: 'function'
   },
   {
+    inputs: [],
+    name: 'getEscrowCount',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function'
+  },
+  {
     anonymous: false,
     inputs: [
       { indexed: true, name: 'escrowId', type: 'bytes32' },
-      { indexed: false, name: 'maker', type: 'address' },
-      { indexed: false, name: 'taker', type: 'address' },
+      { indexed: true, name: 'maker', type: 'address' },
+      { indexed: true, name: 'resolver', type: 'address' },
       { indexed: false, name: 'amount', type: 'uint256' },
-      { indexed: false, name: 'hashlock', type: 'bytes32' },
-      { indexed: false, name: 'timelock', type: 'uint256' }
+      { indexed: false, name: 'safetyDeposit', type: 'uint256' },
+      { indexed: false, name: 'finalityLock', type: 'uint256' }
     ],
-    name: 'EscrowCreated',
+    name: 'SourceEscrowCreated',
     type: 'event'
   },
   {
     anonymous: false,
     inputs: [
       { indexed: true, name: 'escrowId', type: 'bytes32' },
+      { indexed: true, name: 'maker', type: 'address' },
+      { indexed: true, name: 'resolver', type: 'address' },
+      { indexed: false, name: 'amount', type: 'uint256' },
+      { indexed: false, name: 'safetyDeposit', type: 'uint256' },
+      { indexed: false, name: 'finalityLock', type: 'uint256' }
+    ],
+    name: 'DestinationEscrowCreated',
+    type: 'event'
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, name: 'escrowId', type: 'bytes32' },
+      { indexed: true, name: 'resolver', type: 'address' },
       { indexed: false, name: 'secret', type: 'bytes32' }
     ],
-    name: 'EscrowCompleted',
+    name: 'EscrowClaimedExclusive',
+    type: 'event'
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, name: 'escrowId', type: 'bytes32' },
+      { indexed: true, name: 'caller', type: 'address' },
+      { indexed: false, name: 'secret', type: 'bytes32' }
+    ],
+    name: 'EscrowClaimedPublic',
     type: 'event'
   }
 ] as const;
+
+// Fusion+ timelock constants (in seconds)
+const FUSION_TIMELOCK_CONFIG = {
+  FINALITY_DURATION: 300,      // 5 minutes - time for finality lock
+  EXCLUSIVE_DURATION: 1800,    // 30 minutes - exclusive period for resolver
+  CANCELLATION_DURATION: 3600, // 1 hour - time until cancellation allowed
+  SAFETY_DEPOSIT: parseEther('0.1') // 0.1 ETH safety deposit
+};
 
 export class EthereumResolver {
   private publicClient: PublicClient;
@@ -123,7 +205,7 @@ export class EthereumResolver {
       this.contractAddress = escrowContractAddress;
       
       console.log(`🔐 Ethereum resolver initialized with wallet: ${this.account.address}`);
-      console.log(`📋 Connected to escrow contract: ${escrowContractAddress}`);
+      console.log(`📋 Connected to FusionEscrow contract: ${escrowContractAddress}`);
     } catch (error) {
       console.error('❌ Failed to initialize EthereumResolver:', error);
       throw error;
@@ -131,62 +213,137 @@ export class EthereumResolver {
   }
 
   /**
-   * Create an escrow on Ethereum (resolver deposits maker's tokens)
+   * Create source escrow on Ethereum (resolver deposits maker's tokens + safety deposit)
+   * This is called when Ethereum is the SOURCE chain (Alice has ETH, wants other token)
    */
-  async createEscrow(orderHash: string, auction: FusionAuction): Promise<Hash> {
+  async createSourceEscrow(orderHash: string, auction: FusionAuction, targetAddress: Address): Promise<Hash> {
     if (!this.walletClient || !this.account || !this.contractAddress) {
       throw new Error('EthereumResolver not initialized');
     }
 
-    console.log(`📝 Creating Ethereum escrow for order: ${orderHash}`);
+    console.log(`📝 Creating Ethereum SOURCE escrow for order: ${orderHash}`);
 
     try {
       // Convert orderHash to bytes32
       const escrowId = keccak256(toHex(orderHash));
       
-      // Calculate timelock (current block timestamp + auction timelock)
-      const currentBlock = await this.publicClient.getBlock();
-      const timelock = currentBlock.timestamp + BigInt(auction.timelock);
+      // Parse maker address from auction
+      const makerAddress = auction.maker as Address;
+      
+      // Amount is what the maker is providing (their tokens)
+      const amount = parseEther(auction.srcAmount);
+      
+      // For ETH (native token), token address is 0x0
+      const tokenAddress = '0x0000000000000000000000000000000000000000' as Address;
 
-      // Create escrow transaction
+      // Total value = amount + safety deposit
+      const totalValue = amount + FUSION_TIMELOCK_CONFIG.SAFETY_DEPOSIT;
+
+      // Create source escrow transaction
       const hash = await this.walletClient.writeContract({
         address: this.contractAddress,
-        abi: SIMPLE_ESCROW_ABI,
-        functionName: 'createEscrow',
+        abi: FUSION_ESCROW_ABI,
+        functionName: 'createSourceEscrow',
         args: [
           escrowId,
-          this.account.address, // Resolver is both maker and taker for now (simplified)
+          makerAddress,
+          targetAddress,
+          amount,
+          tokenAddress,
           auction.hashlock as `0x${string}`,
-          timelock
+          BigInt(FUSION_TIMELOCK_CONFIG.FINALITY_DURATION),
+          BigInt(FUSION_TIMELOCK_CONFIG.EXCLUSIVE_DURATION),
+          BigInt(FUSION_TIMELOCK_CONFIG.CANCELLATION_DURATION)
         ],
         account: this.account,
-        value: parseEther(auction.srcAmount),
-        gas: 500000n,
+        value: totalValue,
+        gas: 600000n,
         chain: sepolia
       });
 
-      console.log(`⏳ Ethereum escrow transaction sent: ${hash}`);
+      console.log(`⏳ Ethereum source escrow transaction sent: ${hash}`);
       
       // Wait for transaction receipt
       const receipt = await this.publicClient.waitForTransactionReceipt({ hash });
-      console.log(`✅ Ethereum escrow created in block ${receipt.blockNumber}`);
+      console.log(`✅ Ethereum source escrow created in block ${receipt.blockNumber}`);
 
       return hash;
     } catch (error) {
-      console.error(`❌ Failed to create Ethereum escrow:`, error);
+      console.error(`❌ Failed to create Ethereum source escrow:`, error);
       throw error;
     }
   }
 
   /**
-   * Claim from escrow using secret
+   * Create destination escrow on Ethereum (resolver deposits own tokens + safety deposit)
+   * This is called when Ethereum is the DESTINATION chain (Alice wants ETH, has other token)
    */
-  async claimEscrow(orderHash: string, secret: string): Promise<Hash> {
+  async createDestinationEscrow(orderHash: string, auction: FusionAuction): Promise<Hash> {
+    if (!this.walletClient || !this.account || !this.contractAddress) {
+      throw new Error('EthereumResolver not initialized');
+    }
+
+    console.log(`📝 Creating Ethereum DESTINATION escrow for order: ${orderHash}`);
+
+    try {
+      // Convert orderHash to bytes32
+      const escrowId = keccak256(toHex(orderHash));
+      
+      // Parse maker address
+      const makerAddress = auction.maker as Address;
+      
+      // Amount is what the resolver is providing (destination tokens)
+      const amount = parseEther(auction.dstAmount);
+      
+      // For ETH (native token), token address is 0x0
+      const tokenAddress = '0x0000000000000000000000000000000000000000' as Address;
+
+      // Total value = amount + safety deposit
+      const totalValue = amount + FUSION_TIMELOCK_CONFIG.SAFETY_DEPOSIT;
+
+      // Create destination escrow transaction
+      const hash = await this.walletClient.writeContract({
+        address: this.contractAddress,
+        abi: FUSION_ESCROW_ABI,
+        functionName: 'createDestinationEscrow',
+        args: [
+          escrowId,
+          makerAddress,
+          amount,
+          tokenAddress,
+          auction.hashlock as `0x${string}`,
+          BigInt(FUSION_TIMELOCK_CONFIG.FINALITY_DURATION),
+          BigInt(FUSION_TIMELOCK_CONFIG.EXCLUSIVE_DURATION),
+          BigInt(FUSION_TIMELOCK_CONFIG.CANCELLATION_DURATION)
+        ],
+        account: this.account,
+        value: totalValue,
+        gas: 600000n,
+        chain: sepolia
+      });
+
+      console.log(`⏳ Ethereum destination escrow transaction sent: ${hash}`);
+      
+      // Wait for transaction receipt
+      const receipt = await this.publicClient.waitForTransactionReceipt({ hash });
+      console.log(`✅ Ethereum destination escrow created in block ${receipt.blockNumber}`);
+
+      return hash;
+    } catch (error) {
+      console.error(`❌ Failed to create Ethereum destination escrow:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Claim from escrow using secret (during exclusive period)
+   */
+  async claimEscrowExclusive(orderHash: string, secret: string): Promise<Hash> {
     if (!this.walletClient || !this.contractAddress) {
       throw new Error('EthereumResolver not initialized');
     }
 
-    console.log(`🔓 Claiming Ethereum escrow for order: ${orderHash}`);
+    console.log(`🔓 Claiming Ethereum escrow exclusively for order: ${orderHash}`);
 
     try {
       const escrowId = keccak256(toHex(orderHash));
@@ -194,57 +351,128 @@ export class EthereumResolver {
 
       const hash = await this.walletClient.writeContract({
         address: this.contractAddress,
-        abi: SIMPLE_ESCROW_ABI,
-        functionName: 'claim',
+        abi: FUSION_ESCROW_ABI,
+        functionName: 'claimExclusive',
         args: [escrowId, secretBytes],
         account: this.account,
-        gas: 300000n,
+        gas: 400000n,
         chain: sepolia
       });
 
-      console.log(`⏳ Ethereum claim transaction sent: ${hash}`);
+      console.log(`⏳ Ethereum exclusive claim transaction sent: ${hash}`);
       
       const receipt = await this.publicClient.waitForTransactionReceipt({ hash });
-      console.log(`✅ Ethereum escrow claimed in block ${receipt.blockNumber}`);
+      console.log(`✅ Ethereum escrow claimed exclusively in block ${receipt.blockNumber}`);
 
       return hash;
     } catch (error) {
-      console.error(`❌ Failed to claim Ethereum escrow:`, error);
+      console.error(`❌ Failed to claim Ethereum escrow exclusively:`, error);
       throw error;
     }
   }
 
   /**
-   * Cancel escrow after timelock expires
+   * Claim from escrow using secret (after exclusive period, any resolver can claim safety deposit)
    */
-  async cancelEscrow(orderHash: string): Promise<Hash> {
+  async claimEscrowPublic(orderHash: string, secret: string): Promise<Hash> {
     if (!this.walletClient || !this.contractAddress) {
       throw new Error('EthereumResolver not initialized');
     }
 
-    console.log(`❌ Cancelling Ethereum escrow for order: ${orderHash}`);
+    console.log(`🔓 Claiming Ethereum escrow publicly for order: ${orderHash}`);
+
+    try {
+      const escrowId = keccak256(toHex(orderHash));
+      const secretBytes = keccak256(toHex(secret));
+
+      const hash = await this.walletClient.writeContract({
+        address: this.contractAddress,
+        abi: FUSION_ESCROW_ABI,
+        functionName: 'claimPublic',
+        args: [escrowId, secretBytes],
+        account: this.account,
+        gas: 400000n,
+        chain: sepolia
+      });
+
+      console.log(`⏳ Ethereum public claim transaction sent: ${hash}`);
+      
+      const receipt = await this.publicClient.waitForTransactionReceipt({ hash });
+      console.log(`✅ Ethereum escrow claimed publicly in block ${receipt.blockNumber}`);
+
+      return hash;
+    } catch (error) {
+      console.error(`❌ Failed to claim Ethereum escrow publicly:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Cancel escrow after timelock expires (exclusive period)
+   */
+  async cancelEscrowExclusive(orderHash: string): Promise<Hash> {
+    if (!this.walletClient || !this.contractAddress) {
+      throw new Error('EthereumResolver not initialized');
+    }
+
+    console.log(`❌ Cancelling Ethereum escrow exclusively for order: ${orderHash}`);
 
     try {
       const escrowId = keccak256(toHex(orderHash));
 
       const hash = await this.walletClient.writeContract({
         address: this.contractAddress,
-        abi: SIMPLE_ESCROW_ABI,
-        functionName: 'cancel',
+        abi: FUSION_ESCROW_ABI,
+        functionName: 'cancelExclusive',
         args: [escrowId],
         account: this.account,
-        gas: 300000n,
+        gas: 400000n,
         chain: sepolia
       });
 
-      console.log(`⏳ Ethereum cancel transaction sent: ${hash}`);
+      console.log(`⏳ Ethereum exclusive cancel transaction sent: ${hash}`);
       
       const receipt = await this.publicClient.waitForTransactionReceipt({ hash });
-      console.log(`✅ Ethereum escrow cancelled in block ${receipt.blockNumber}`);
+      console.log(`✅ Ethereum escrow cancelled exclusively in block ${receipt.blockNumber}`);
 
       return hash;
     } catch (error) {
-      console.error(`❌ Failed to cancel Ethereum escrow:`, error);
+      console.error(`❌ Failed to cancel Ethereum escrow exclusively:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Cancel escrow after timelock expires (public period, any resolver gets safety deposit)
+   */
+  async cancelEscrowPublic(orderHash: string): Promise<Hash> {
+    if (!this.walletClient || !this.contractAddress) {
+      throw new Error('EthereumResolver not initialized');
+    }
+
+    console.log(`❌ Cancelling Ethereum escrow publicly for order: ${orderHash}`);
+
+    try {
+      const escrowId = keccak256(toHex(orderHash));
+
+      const hash = await this.walletClient.writeContract({
+        address: this.contractAddress,
+        abi: FUSION_ESCROW_ABI,
+        functionName: 'cancelPublic',
+        args: [escrowId],
+        account: this.account,
+        gas: 400000n,
+        chain: sepolia
+      });
+
+      console.log(`⏳ Ethereum public cancel transaction sent: ${hash}`);
+      
+      const receipt = await this.publicClient.waitForTransactionReceipt({ hash });
+      console.log(`✅ Ethereum escrow cancelled publicly in block ${receipt.blockNumber}`);
+
+      return hash;
+    } catch (error) {
+      console.error(`❌ Failed to cancel Ethereum escrow publicly:`, error);
       throw error;
     }
   }
@@ -262,16 +490,21 @@ export class EthereumResolver {
 
       const escrowData = await this.publicClient.readContract({
         address: this.contractAddress,
-        abi: SIMPLE_ESCROW_ABI,
+        abi: FUSION_ESCROW_ABI,
         functionName: 'getEscrow',
         args: [escrowId]
       }) as {
         maker: `0x${string}`;
-        taker: `0x${string}`;
+        resolver: `0x${string}`;
+        targetAddress: `0x${string}`;
         amount: bigint;
+        safetyDeposit: bigint;
+        token: `0x${string}`;
         hashlock: `0x${string}`;
-        timelock: bigint;
-        funded: boolean;
+        finalityLock: bigint;
+        exclusiveLock: bigint;
+        cancellationLock: bigint;
+        depositPhase: boolean;
         completed: boolean;
       };
 
@@ -283,11 +516,11 @@ export class EthereumResolver {
       return {
         orderHash,
         contractAddress: this.contractAddress,
-        funded: escrowData.funded,
+        funded: true, // In Fusion+ model, escrows are always funded when created
         amount: formatEther(escrowData.amount),
         hashlock: escrowData.hashlock,
-        timelock: Number(escrowData.timelock),
-        creator: escrowData.maker
+        timelock: Number(escrowData.cancellationLock), // Use cancellation lock as the main timelock
+        creator: escrowData.resolver
       };
     } catch (error) {
       console.error(`❌ Failed to get escrow details:`, error);
@@ -303,25 +536,25 @@ export class EthereumResolver {
       throw new Error('EthereumResolver not initialized');
     }
 
-    console.log('👀 Starting Ethereum escrow event monitoring...');
+    console.log('👀 Starting Ethereum Fusion+ escrow event monitoring...');
 
-         // Watch for EscrowCreated events
-     const unwatch = this.publicClient.watchContractEvent({
-       address: this.contractAddress,
-       abi: SIMPLE_ESCROW_ABI,
-       eventName: 'EscrowCreated',
-       onLogs: (logs: any[]) => {
+    // Watch for SourceEscrowCreated events
+    const unwatchSource = this.publicClient.watchContractEvent({
+      address: this.contractAddress,
+      abi: FUSION_ESCROW_ABI,
+      eventName: 'SourceEscrowCreated',
+      onLogs: (logs: any[]) => {
         for (const log of logs) {
-          console.log(`📨 New Ethereum escrow created: ${log.args.escrowId}`);
+          console.log(`📨 New Ethereum source escrow created: ${log.args.escrowId}`);
           
           const escrowData: EscrowData = {
             orderHash: log.args.escrowId as string,
             contractAddress: this.contractAddress!,
             funded: true,
             amount: formatEther(log.args.amount!),
-            hashlock: log.args.hashlock as string,
-            timelock: Number(log.args.timelock),
-            creator: log.args.maker as string
+            hashlock: '', // Not available in creation event
+            timelock: Number(log.args.finalityLock),
+            creator: log.args.resolver as string
           };
 
           callback(escrowData);
@@ -329,7 +562,34 @@ export class EthereumResolver {
       }
     });
 
-    return unwatch;
+    // Watch for DestinationEscrowCreated events
+    const unwatchDestination = this.publicClient.watchContractEvent({
+      address: this.contractAddress,
+      abi: FUSION_ESCROW_ABI,
+      eventName: 'DestinationEscrowCreated',
+      onLogs: (logs: any[]) => {
+        for (const log of logs) {
+          console.log(`📨 New Ethereum destination escrow created: ${log.args.escrowId}`);
+          
+          const escrowData: EscrowData = {
+            orderHash: log.args.escrowId as string,
+            contractAddress: this.contractAddress!,
+            funded: true,
+            amount: formatEther(log.args.amount!),
+            hashlock: '', // Not available in creation event
+            timelock: Number(log.args.finalityLock),
+            creator: log.args.resolver as string
+          };
+
+          callback(escrowData);
+        }
+      }
+    });
+
+    return () => {
+      unwatchSource();
+      unwatchDestination();
+    };
   }
 
   /**
@@ -369,9 +629,45 @@ export class EthereumResolver {
   }
 
   /**
+   * Get current timestamp from latest block
+   */
+  async getCurrentTimestamp(): Promise<number> {
+    const block = await this.publicClient.getBlock();
+    return Number(block.timestamp);
+  }
+
+  /**
    * Get transaction receipt
    */
   async getTransactionReceipt(hash: Hash) {
     return await this.publicClient.getTransactionReceipt({ hash });
+  }
+
+  /**
+   * Check if we're in exclusive period for an escrow
+   */
+  async isInExclusivePeriod(orderHash: string): Promise<boolean> {
+    const escrowDetails = await this.getEscrowDetails(orderHash);
+    if (!escrowDetails) return false;
+
+    const currentTimestamp = await this.getCurrentTimestamp();
+    const escrowId = keccak256(toHex(orderHash));
+    
+    const fullEscrowData = await this.publicClient.readContract({
+      address: this.contractAddress!,
+      abi: FUSION_ESCROW_ABI,
+      functionName: 'getEscrow',
+      args: [escrowId]
+    }) as any;
+
+    return currentTimestamp >= Number(fullEscrowData.finalityLock) && 
+           currentTimestamp < Number(fullEscrowData.exclusiveLock);
+  }
+
+  /**
+   * Get safety deposit amount
+   */
+  getSafetyDepositAmount(): string {
+    return formatEther(FUSION_TIMELOCK_CONFIG.SAFETY_DEPOSIT);
   }
 } 
