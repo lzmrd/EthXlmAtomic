@@ -1,4 +1,4 @@
-import { keccak256, toHex } from 'viem';
+import { keccak256, toHex, parseEther } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { FusionOrder, SwapParams } from '../../shared/types';
 import { SecretManager } from '../../cross-chain-utils/secretManager';
@@ -253,12 +253,17 @@ export class OrderMaker {
       }
     };
 
-    // Create message to sign
-    const message = this.createSigningMessage(order);
-    console.log(`🔏 Signing sell order: ${message.substring(0, 50)}...`);
+    // Create message for EIP-712 signing (uniform across chains)
+    const { types, domain, message } = this.createEIP712Message(order);
+    console.log(`🔏 Signing EIP-712 order: ${JSON.stringify(message).substring(0, 100)}...`);
 
-    // Sign the order
-    const signature = await this.account.sign({ hash: keccak256(toHex(message)) });
+    // Sign the order with EIP-712 using Viem
+    const signature = await this.account.signTypedData({
+      domain,
+      types,
+      primaryType: 'Order',
+      message
+    });
     
     const signedOrder: MakerOrder = {
       ...order,
@@ -397,20 +402,106 @@ export class OrderMaker {
   }
 
   /**
-   * Create message for off-chain signing
+   * Create message for EIP-712 signing (uniform across chains)
    */
-  private createSigningMessage(order: Omit<MakerOrder, 'signature'>): string {
-    return [
-      'FUSION_PLUS_SELL_ORDER_V1',
-      `id:${order.id}`,
-      `maker:${order.maker}`,
-      `sell:${order.srcAmount}:${order.srcToken}:${order.srcChain}`,
-      `for:${order.dstAmount}:${order.dstToken}:${order.dstChain}`,
-      `hashlock:${order.hashlock}`,
-      `timelock:${order.timelock}`,
-      `nonce:${order.nonce}`,
-      `rate:${order.metadata?.calculatedRate || '0'}`
-    ].join('|');
+  private createEIP712Message(order: Omit<MakerOrder, 'signature'>): {
+    types: any;
+    domain: any;
+    message: any;
+  } {
+    // EIP-712 types - identical to Ethereum contract
+    const types = {
+      Order: [
+        { name: 'escrowId', type: 'bytes32' },
+        { name: 'maker', type: 'address' },
+        { name: 'targetAddress', type: 'address' },
+        { name: 'amount', type: 'uint256' },
+        { name: 'token', type: 'address' },
+        { name: 'hashlock', type: 'bytes32' },
+        { name: 'finalityDuration', type: 'uint256' },
+        { name: 'exclusiveDuration', type: 'uint256' },
+        { name: 'cancellationDuration', type: 'uint256' },
+        { name: 'nonce', type: 'uint256' }
+      ]
+    } as const;
+
+    // EIP-712 domain - cross-chain compatible
+    const domain = {
+      name: 'FusionEscrow',
+      version: '1.0.0',
+      chainId: this.getChainId(order.srcChain),
+      verifyingContract: this.getEscrowAddress(order.srcChain)
+    } as const;
+
+    // Convert order to EIP-712 format
+    const message = {
+      escrowId: this.generateEscrowId(order),
+      maker: order.maker,
+      targetAddress: order.maker, // For cross-chain swaps
+      amount: this.parseAmount(order.srcAmount, order.srcToken),
+      token: this.getTokenAddress(order.srcToken, order.srcChain),
+      hashlock: order.hashlock,
+      finalityDuration: BigInt(order.timelock || 60),
+      exclusiveDuration: BigInt(300), // 5 minutes
+      cancellationDuration: BigInt(3600), // 1 hour
+      nonce: BigInt(order.nonce)
+    };
+
+    return { types, domain, message };
+  }
+
+  /**
+   * Get chain ID for EIP-712 domain
+   */
+  private getChainId(chain: string): number {
+    switch (chain) {
+      case 'ethereum': return 11155111; // Sepolia
+      case 'stellar': return 100; // Stellar testnet
+      default: return 1;
+    }
+  }
+
+  /**
+   * Get escrow contract address for chain
+   */
+  private getEscrowAddress(chain: string): string {
+    switch (chain) {
+      case 'ethereum': return process.env.ESCROW_CONTRACT_ADDRESS || '0x0000000000000000000000000000000000000000';
+      case 'stellar': return process.env.STELLAR_ESCROW_ADDRESS || '0x0000000000000000000000000000000000000000';
+      default: return '0x0000000000000000000000000000000000000000';
+    }
+  }
+
+  /**
+   * Generate escrow ID from order
+   */
+  private generateEscrowId(order: Omit<MakerOrder, 'signature'>): string {
+    const data = `${order.id}-${order.maker}-${order.srcChain}-${order.dstChain}`;
+    return keccak256(toHex(data));
+  }
+
+  /**
+   * Parse amount to BigInt
+   */
+  private parseAmount(amount: string, token: string): bigint {
+    // Convert to smallest unit (wei for ETH, stroops for XLM)
+    if (token === 'ETH' || token === 'WETH') {
+      return parseEther(amount);
+    } else if (token === 'XLM') {
+      return BigInt(parseFloat(amount) * 10000000); // 7 decimal places
+    }
+    return BigInt(amount);
+  }
+
+  /**
+   * Get token contract address
+   */
+  private getTokenAddress(token: string, chain: string): string {
+    if (token === 'ETH' || token === 'XLM') {
+      return '0x0000000000000000000000000000000000000000'; // Native token
+    }
+    // Add token address mappings here
+    return '0x0000000000000000000000000000000000000000';
   }
 
   /**
@@ -464,16 +555,16 @@ export class OrderMaker {
   }
 
   /**
-   * Verify an order signature
+   * Verify an order signature using EIP-712
    */
   async verifyOrderSignature(order: MakerOrder): Promise<boolean> {
     try {
-      const message = this.createSigningMessage(order);
-      const messageHash = keccak256(toHex(message));
-      console.log(`🔍 Verifying signature for sell order: ${order.id}`);
+      const { types, domain, message } = this.createEIP712Message(order);
+      console.log(`🔍 Verifying EIP-712 signature for order: ${order.id}`);
+      // TODO: Implement actual EIP-712 signature verification
       return true;
     } catch (error) {
-      console.error('❌ Signature verification failed:', error);
+      console.error('❌ EIP-712 signature verification failed:', error);
       return false;
     }
   }

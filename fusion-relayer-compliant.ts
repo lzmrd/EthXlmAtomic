@@ -700,13 +700,14 @@ export class FusionPlusRelayer {
         // Track finality
         const status = this.escrowStatuses.get(orderId);
         if (status && !status.ethereumBlock) {
-          status.ethereumBlock = await this.ethereumClient.getBlockNumber();
-          status.ethereumFinalityBlock = status.ethereumBlock + FUSION_CONFIG.ETHEREUM_FINALITY_BLOCKS;
+          const blockNumber = await this.ethereumClient.getBlockNumber();
+          status.ethereumBlock = blockNumber;
+          status.ethereumFinalityBlock = blockNumber + FUSION_CONFIG.ETHEREUM_FINALITY_BLOCKS;
         }
       }
       
       return exists;
-    } catch (error) {
+    } catch (error: any) {
       // Don't log error for every check - only if it's not a "not found" error
       if (!error.toString().includes('not found') && !error.toString().includes('NotFound')) {
         console.log(`❌ Error checking Ethereum escrow: ${error}`);
@@ -735,7 +736,7 @@ export class FusionPlusRelayer {
       }
       
       return false;
-    } catch (error) {
+    } catch (error: any) {
       // Don't log error for every check - only if it's not a "not found" error
       if (!error.toString().includes('parsing argument') && !error.toString().includes('NOT_FOUND')) {
         console.log(`❌ Error checking Stellar escrow: ${error}`);
